@@ -8,6 +8,8 @@ Each dataset has a different urban definition, as such:
 - GHS-FUA: Areas in which at least 15% of the population is commuting to the main Urban Centre of the area. Delineated commuting area of the Urban Centres of epoch 2015, estimated through an automated classification procedure developed using OECD defintion/methodology.
 - GHS-UC: Areas defined by specific cut-off values on resident population and built-up surface share in a 1x1 km uniform global grid. 
 
+![Urban Centre](uc.png)
+
 # Tasks
 1. Review defintions and temporal dimension
 2. Create code for uploading and generate unique matching code
