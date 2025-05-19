@@ -1,0 +1,7 @@
+as.patchwork            as.patchwork
+gglist                  construct a 'gglist' object
+gglistGrob              This function converts 'gglist' object to grob
+                        (i.e. gtable object)
+insert_left             plot-insertion
+plot_list               plot a list of ggplot objects
+xlim2                   xlim2

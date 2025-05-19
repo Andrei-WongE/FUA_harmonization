@@ -1,0 +1,56 @@
+%nin%                   Not '%in%'
+%not%                   Subsetting operators
+add_gridlines           Add and remove gridlines
+center                  Mean-center vectors, data frames, and survey
+                        designs
+center_mod              Center variables in fitted regression models
+effect_plot             Plot simple effects in regression models
+export_summs            Export regression summaries to tables
+get_colors              Get colors for plotting functions
+get_formula             Retrieve formulas from model objects
+get_offset_name         Utility functions for generating model
+                        predictions
+get_robust_se           Calculate robust standard errors and produce
+                        coefficient tables
+gscale                  Scale and/or center data, including survey
+                        designs
+interact_plot           Deprecated interaction functions
+jtools_colors           Color palettes in 'jtools' functions
+knit_print.summ.lm      knitr methods for summ
+make_new_data           Make new data for generating predicted data
+                        from regression models.
+make_predictions        Generate predicted data for plotting results of
+                        regression models
+md_table                Print attractive data frames in the console
+movies                  Data about movies
+num_print               Numbering printing with signed zeroes and
+                        trailing zeroes
+partialize              Adjust observed data for partial residuals
+                        plots
+pf_sv_test              Test whether sampling weights are needed
+plot_summs              Plot Regression Summaries
+predict_merMod          Alternative interface for 'merMod' predictions
+scale_mod               Scale variables in fitted regression models
+set_summ_defaults       Set defaults for 'summ()' functions
+standardize             Standardize vectors, data frames, and survey
+                        designs
+summ                    Regression summaries with options
+summ.glm                Generalized linear regression summaries with
+                        options
+summ.lm                 Linear regression summaries with options
+summ.merMod             Mixed effects regression summaries with options
+summ.rq                 Quantile regression summaries with options
+summ.svyglm             Complex survey regression summaries with
+                        options
+svycor                  Calculate Pearson correlations with complex
+                        survey data
+svysd                   Calculate standard deviations with complex
+                        survey data
+theme_apa               Format ggplot2 figures in APA style
+theme_nice              A nice, flexible 'ggplot2' theme
+tidy.summ               Broom extensions for summ objects
+weights_tests           Test whether sampling weights are needed
+wgttest                 Test whether sampling weights are needed
+wrap_str                'cat', 'message', 'warning', and 'stop' wrapped
+                        to fit the console's width.
+wtd.sd                  Weighted standard deviation calculation
