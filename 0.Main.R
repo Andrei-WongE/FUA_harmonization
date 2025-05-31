@@ -37,8 +37,9 @@ pkgs = c("dplyr", "tidyverse", "janitor", "sf"
          , "future", "furrr", "data.table","leaflet"
          , "jtools", "tidyr", "ggspatial", "raster"
          , "prettymapr", "viridis", "labelled"
-         , "writexl", "WDI", "wesanderson", "ggrepel",
-         "ggbreak", "leaflet.extras", "htmlwidgets", "terra"
+         , "writexl", "WDI", "wesanderson", "ggrepel"
+         , "ggbreak", "leaflet.extras", "htmlwidgets", "terra"
+         , "httr"
 )
 
 groundhog.library(pkgs, groundhog.day)
@@ -217,251 +218,366 @@ saveWidget(comparison_map
 
 # 3. Clip population data -----
 
-# ## Convert to raster, oefua 
-# # pop_cropped <- terra::crop(pop_2020, vect(oefua))
-# 
-# # Reduce to ~2km resolution
-# pop_agg <- terra::aggregate(pop_2020, fact = 2, fun = "sum")
-# oefua_raster <- terra::rasterize(vect(oefua), pop_agg
-#                                  , field = "OE_FUAID"
-#                                  # , filename = "efua_temp.tif"
-#                                  # , overwrite = TRUE
-#                                  )
-# 
-# ## Clip population data to the extent of OE eFUA
-# pop_2020_oefua <- terra::mask(pop_agg, oefua_raster
-#                               # , filename = here("Output","pop_2020_oefua_.tif")
-#                               # , overwrite = TRUE
-# )
-# 
-# ## Convert to raster, uc
-# # pop_cropped <- terra::crop(pop_2020, vect(uc))
-# 
-# # Reduce to ~2km resolution
-# # pop_agg <- terra::aggregate(pop_cropped, fact = 2, fun = "sum")
-# uc_raster <- terra::rasterize(vect(uc), pop_agg
-#                                  , field = "ID_UC_G0"
-#                                  # , filename = "efua_temp.tif"
-#                                  # , overwrite = TRUE
-#                                 )
-# ## Clip population data to the extent of uc
-# pop_2020_uc <- terra::mask(pop_agg, uc_raster
-#                               # , filename = here("Output","pop_2020_oefua_.tif")
-#                               # , overwrite = TRUE
-# )
-# 
-# ## Convert to raster, efua 
-# # pop_cropped <- terra::crop(pop_2020, vect(efua))
-# 
-# # Reduce to ~2km resolution
-# # pop_agg <- terra::aggregate(pop_cropped, fact = 2, fun = "sum")
-# efua_raster <- terra::rasterize(vect(efua), pop_agg
-#                               , field = "eFUA_ID"
-#                               # , filename = "efua_temp.tif"
-#                               # , overwrite = TRUE
-# )
-# ## Clip population data to the extent of efua
-# pop_2020_efua <- terra::mask(pop_agg, efua_raster
-#                               # , filename = here("Output","pop_2020_oefua_.tif")
-#                               # , overwrite = TRUE
-# )
-# 
-# 
-# # 4. Create matching ids table ----
-# 
-# ## Step 1: Find uc polygons fully within oefua
-# within_check <- terra::zonal(pop_2020_oefua, pop_2020_uc, fun = "all", na.rm = TRUE)
-# within_ids <- within_check[within_check[,2] == 1, 1]
-# 
-# ## Step 2: For uc polygons that intersect but aren't fully within
-# intersect_raster <- terra::mask(pop_2020_uc, pop_2020_oefua)
-# uc_ids <- unique(pop_2020_uc[!is.na(pop_2020_uc)])
-# intersecting_ids <- uc_ids[!uc_ids %in% within_ids]
-# 
-# ## Step 3: Apply 50% rule to intersecting uc polygons
-# pop_totals_uc <- terra::zonal(pop_2020_uc, pop_2020_uc, fun = "sum", na.rm = TRUE)
-# pop_intersect_uc <- terra::zonal(intersect_raster, pop_2020, fun = "sum", na.rm = TRUE)
-# 
-# ## Step 4: Calculate ratios for uc polygons
-# pop_ratios_uc <- pop_intersect_uc[,2] / pop_totals_uc[,2]
-# intersects_condition <- pop_ratios_uc > 0.5
-# 
-# intersects_ids <- uc_ids[intersects_condition & uc_ids %in% intersecting_ids]
-# intersects_raster <- pop_2020_uc %in% intersects_ids
-
-
 tryCatch({
-## Step 1: Create rasters
-pop_agg <- terra::aggregate(pop_2020, fact = 2, fun = "sum")
-
-# Verify resolution and extent aliunment
-terra::res(oefua_raster)
-# [1] 2000 2000
-terra::res(uc_raster)
-# [1] 2000 2000
-terra::res(efua_raster)
-# [1] 2000 2000
-terra::ext(oefua_raster)
-# SpatExtent : -18041000, 18041000, -9000000, 9000000 (xmin, xmax, ymin, ymax)
-terra::ext(uc_raster)
-# SpatExtent : -18041000, 18041000, -9000000, 9000000 (xmin, xmax, ymin, ymax)
-terra::ext(efua_raster)
-# SpatExtent : -18041000, 18041000, -9000000, 9000000 (xmin, xmax, ymin, ymax)
-
-
-# Rasterize sf objects to match pop_agg
-oefua_raster <- terra::rasterize(vect(oefua), pop_agg, field = "OE_FUAID")
-uc_raster <- terra::rasterize(vect(uc), pop_agg, field = "ID_UC_G0")
-efua_raster <- terra::rasterize(vect(efua), pop_agg, field = "eFUA_ID")
-
-## Step 2: Find intersections conditional on pixel with population and spatial overlap 
-area_intersections <- function(area_raster1, area_raster2, pop_raster) {
-  area_ids <- unique(area_raster1[!is.na(area_raster1)])
-  intersections <- data.frame()
+# Using vector approach instead of raster, due to the size of pop raster
+  pop_agg <- terra::aggregate(pop_2020, fact = 2, fun = "sum") 
   
-  for(area_id in area_ids) {
-    # Create mask
-    area_mask <- area_raster1 == area_id
+  names(pop_agg) <- "total_pop"
+  
+  message("Starting vector-based analysis...")
+  
+  ## Step 1: Calculate total population for each area using vector-raster extraction
+  message("Extracting population data...")
+  
+  # Extract total population for each urban area
+  uc_pop <- terra::extract(pop_agg, terra::vect(uc), fun = "sum", na.rm = TRUE, ID = TRUE) # maps to original polygon, preserves order
+  efua_pop <- terra::extract(pop_agg, terra::vect(efua), fun = "sum", na.rm = TRUE, ID = TRUE)
+  
+  # As extract returns separte data frames, merge back to original data
+  uc$total_pop <- uc_pop$total_pop
+  efua$total_pop <- efua_pop$total_pop
+  
+  gc()
+  ## Step 2: Find spatial intersections using oefua based cluster selection
+  message("Computing spatial intersections...")
+  
+  # Set up parallel processing
+  plan(multisession, workers = parallel::detectCores() - 1)
+  
+  # Use oefua as spatial reference for chunking
+  oefua_bbox <- sf::st_bbox(oefua)
+  
+  # Adaptive grid based on OEFUA density
+  oefua_density <- nrow(oefua) / 1000
+  grid_n <- if(oefua_density > 50) c(8, 4) else c(6, 3)
+  
+  world_grid <- sf::st_make_grid(oefua_bbox, n = grid_n)
+  
+  # Process each spatial tile for both uc and efua
+  process_tile <- function(tile) {
+    # Filter OEFUA (primary reference)
+    oefua_tile <- sf::st_filter(oefua, tile)
     
-    # Find oefua areas that have population overlap with this area
-    overlapping_cells <- area_mask & !is.na(area_raster2) & !is.na(pop_raster)
+    if(nrow(oefua_tile) == 0) return(list(uc = NULL, efua = NULL))
     
-    if(terra::global(overlapping_cells, fun = "sum", na.rm = TRUE)[1,1] > 0) {
-      overlapping_oefua <- unique(area_raster2[overlapping_cells])
-      overlapping_oefua <- overlapping_oefua[!is.na(overlapping_oefua)]
-      
-      if(length(overlapping_oefua) > 0) {
-        intersections <- rbind(intersections, 
-                               data.frame(area_id = area_id, 
-                                          oefua_id = overlapping_oefua))
-      }
+    # Filter uc and efua by tile
+    uc_tile <- sf::st_filter(uc, tile)
+    efua_tile <- sf::st_filter(efua, tile)
+    
+    # UC intersections
+    uc_result <- NULL
+    if(nrow(uc_tile) > 0) {
+      uc_result <- sf::st_intersection(uc_tile, oefua_tile)
     }
-  }
-  return(intersections)
-}
-
-# Find uc intersections with oefua
-uc_intersections <- area_intersections(uc_raster, oefua_raster, pop_agg)
-names(uc_intersections) <- c("uc_id", "oefua_id")
-
-# Find efua intersections with oefua
-efua_intersections <- area_intersections(efua_raster, oefua_raster, pop_agg)
-names(efua_intersections) <- c("efua_id", "oefua_id")
-
-# Check for multiple intersections
-uc_multi <- uc_intersections %>% 
-  group_by(uc_id) %>% 
-  summarise(n_oefua = n()) %>% 
-  filter(n_oefua > 1)
-
-efua_multi <- efua_intersections %>% 
-  group_by(efua_id) %>% 
-  summarise(n_oefua = n()) %>% 
-  filter(n_oefua > 1)
-
-if(nrow(uc_multi) > 0) {
-  warning(paste("UC areas intersecting multiple OEFUA:", paste(uc_multi$uc_id, collapse = ", ")))
-}
-
-if(nrow(efua_multi) > 0) {
-  warning(paste("EFUA areas intersecting multiple OEFUA:", paste(efua_multi$efua_id, collapse = ", ")))
-}
-
-## Step 3: Apply 50% population rule 
-
-# Function to apply 50% rule
-selection_rule <- function(area_raster, area_intersections, area_name) {
-  
-  # Calculate total population for each area
-  total_pop <- terra::zonal(pop_agg, area_raster, fun = "sum", na.rm = TRUE)
-  names(total_pop) <- c("area_id", "total_pop")
-  
-  qualifying_areas <- data.frame()
-  
-  for(i in 1:nrow(area_intersections)) {
-    area_id <- area_intersections[i, 1]
-    oefua_id <- area_intersections[i, 2]
     
-    # Create intersection mask
-    area_mask <- area_raster == area_id
-    oefua_mask <- oefua_raster == oefua_id
-    intersection_mask <- area_mask & oefua_mask
-    
-    # Calculate intersection population
-    intersect_pop <- terra::global(pop_agg * intersection_mask, fun = "sum", na.rm = TRUE)[1,1]
-    
-    # Get total population for this area
-    total_pop_area <- total_pop[total_pop$area_id == area_id, "total_pop"]
-    
-    # Apply 50% rule
-    if(length(total_pop_area) > 0 && total_pop_area > 0) {
-      ratio <- intersect_pop / total_pop_area
-      if(ratio >= 0.5) {
-        qualifying_areas <- rbind(qualifying_areas, 
-                                  data.frame(area_id = area_id, 
-                                             oefua_id = oefua_id,
-                                             population = intersect_pop))
-      }
+    # EFUA intersections
+    efua_result <- NULL
+    if(nrow(efua_tile) > 0) {
+      efua_result <- sf::st_intersection(efua_tile, oefua_tile)
     }
+    
+    return(list(uc = uc_result, efua = efua_result))
+    gc()
   }
   
-  return(qualifying_areas)
-}
+  # Intersection in parallel by geographic tiles
+  tile_results <- future_map(world_grid, process_tile)
+  
+  uc_intersections <- map_dfr(tile_results, ~.x$uc)
+  efua_intersections <- map_dfr(tile_results, ~.x$efua)
+  
+  ## Step 3: Extract population for intersection areas
+  message("Calculating intersection populations...")
+  
+  # Extract population for intersection polygons
+  uc_intersect_pop <- terra::extract(pop_agg, terra::vect(uc_intersections), 
+                                     fun = "sum", na.rm = TRUE, ID = TRUE)
+  efua_intersect_pop <- terra::extract(pop_agg, terra::vect(efua_intersections), 
+                                       fun = "sum", na.rm = TRUE, ID = TRUE)
+  
+  # Add intersection population
+  uc_intersections$intersect_pop <- replace_na(uc_intersect_pop$total_pop, 0)
+  efua_intersections$intersect_pop <- replace_na(efua_intersect_pop$total_pop, 0)
+  
+  ## Step 4: Apply 50% population rule
+  message("Applying 50% population rule...")
+  
+  # Calculate population ratios with NA handling
+  uc_intersections$pop_ratio <- ifelse(uc_intersections$total_pop > 0,
+                                       uc_intersections$intersect_pop / uc_intersections$total_pop, 
+                                       0)
+  efua_intersections$pop_ratio <- ifelse(efua_intersections$total_pop > 0,
+                                         efua_intersections$intersect_pop / efua_intersections$total_pop, 
+                                         0)
+  
+  # Filter qualifying areas (≥50% population overlap)
+  uc_qualifying <- uc_intersections[uc_intersections$pop_ratio >= 0.5, ]
+  efua_qualifying <- efua_intersections[efua_intersections$pop_ratio >= 0.5, ]
+  
+  ## Step 5: Identify main city centers
+  message("Identifying main city centers...")
+  
+  # Create data frames for processing
+  uc_centers_df <- data.frame(
+    Id = uc_qualifying$ID_UC_G0,
+    oefua_id = uc_qualifying$OE_FUAID,
+    population = uc_qualifying$intersect_pop
+  )
+  
+  efua_centers_df <- data.frame(
+    Id = efua_qualifying$eFUA_ID,
+    oefua_id = efua_qualifying$OE_FUAID,
+    population = efua_qualifying$intersect_pop
+  )
+  
+  # Identify main centers (highest population per OEFUA)
+  uc_main_centers <- uc_centers_df %>%
+    group_by(oefua_id) %>%
+    mutate(Main_city_center = ifelse(population == max(population, na.rm = TRUE), 1, 0)) %>%
+    dplyr::select(Id, Main_city_center, oefua_id) %>%
+    ungroup()
+  
+  efua_main_centers <- efua_centers_df %>%
+    group_by(oefua_id) %>%
+    mutate(Main_city_center = ifelse(population == max(population, na.rm = TRUE), 1, 0)) %>%
+    dplyr::select(Id, Main_city_center, oefua_id) %>%
+    ungroup()
+  
+  ## Step 6: Quality checks
+  message("Running quality checks...")
+  
+  # Check for multiple intersections
+  uc_multi <- uc_centers_df %>% 
+    group_by(Id) %>% 
+    summarise(n_oefua = n(), .groups = 'drop') %>% 
+    filter(n_oefua > 1)
+  
+  efua_multi <- efua_centers_df %>% 
+    group_by(Id) %>% 
+    summarise(n_oefua = n(), .groups = 'drop') %>% 
+    filter(n_oefua > 1)
+  
+  if(nrow(uc_multi) > 0) {
+    warning(paste("UC areas intersecting multiple OEFUA:", nrow(uc_multi)))
+    write_csv(uc_multi, here("Output", "uc_multi_intersections.csv"))
+  }
+  
+  if(nrow(efua_multi) > 0) {
+    warning(paste("EFUA areas intersecting multiple OEFUA:", nrow(efua_multi)))
+    write_csv(efua_multi, here("Output", "efua_multi_intersections.csv"))
+  }
+  
+  ## Step 7: Export results
+  message("Exporting results...")
+  
+  write_csv(uc_main_centers, here("Output", "uc_table.csv"))
+  write_csv(efua_main_centers, here("Output", "efua_table.csv"))
+  
+  # Summary statistics
+  cat("Analysis Complete!\n")
+  cat("UC qualifying areas:", nrow(uc_main_centers), "\n")
+  cat("EFUA qualifying areas:", nrow(efua_main_centers), "\n")
+  cat("UC areas with multiple OEFUA intersections:", nrow(uc_multi), "\n")
+  cat("EFUA areas with multiple OEFUA intersections:", nrow(efua_multi), "\n")
 
-# Apply rule to areas
-uc_qualifying <- selection_rule(uc_raster, uc_intersections, "UC")
-efua_qualifying <- selection_rule(efua_raster, efua_intersections, "EFUA")
-
-# Check for OEFUA with no qualifying areas
-# oefua_ids <- unique(oefua$OE_FUAID)
-# uc_oefua_covered <- unique(uc_qualifying$oefua_id)
-# efua_oefua_covered <- unique(efua_qualifying$oefua_id)
-# 
-# uc_missing <- setdiff(oefua_ids, uc_oefua_covered)
-# efua_missing <- setdiff(oefua_ids, efua_oefua_covered)
-# 
-# if(length(uc_missing) > 0) {
-#   warning(paste("OEFUA with no qualifying UC areas:", paste(uc_missing, collapse = ", ")))
-# }
-# 
-# if(length(efua_missing) > 0) {
-#   warning(paste("OEFUA with no qualifying EFUA areas:", paste(efua_missing, collapse = ", ")))
-# }
-
-## Step 4: Identify main city centers 
-
-# UC main centers
-uc_main_centers <- uc_qualifying %>%
-  group_by(oefua_id) %>%
-  mutate(Main_city_center = ifelse(population == max(population), 1, 0)) %>%
-  select(Id = area_id, Main_city_center, oefua_id) %>%
-  ungroup()
-
-# EFUA main centers
-efua_main_centers <- efua_qualifying %>%
-  group_by(oefua_id) %>%
-  mutate(Main_city_center = ifelse(population == max(population), 1, 0)) %>%
-  select(Id = area_id, Main_city_center, oefua_id) %>%
-  ungroup()
-
-## Step 5: Create output tables 
-
-write.csv(uc_main_centers, "uc_table.csv", row.names = FALSE)
-write.csv(efua_main_centers, "efua_table.csv", row.names = FALSE)
-
-cat("UC qualifying areas:", nrow(uc_main_centers), "\n")
-cat("EFUA qualifying areas:", nrow(efua_main_centers), "\n")
-cat("Analysis complete!\n")
-
-body = "Your R script has finished running!"
+  gc()
+  
+message_text = "Your R script has finished running!"
 source(here("Data","pushsaver.R"))
 
 }, error = function(e) {
-  
-  body = paste("Error in script:", e$message)
+
+  message_text = paste("Error in script:", e$message)
   source(here("Data","pushsaver.R"))
-  
+
 })
+
+# NEXT
+# Mapping problematic intersections, check intersection conditions, its ucs and efuas with multiple oefuas!
+
+
+
+# tryCatch({
+#   
+# message("Starting process...")
+#   
+# ## Step 1: Create rasters
+# pop_agg <- terra::aggregate(pop_2020, fact = 2, fun = "sum")
+# 
+# # Verify resolution and extent aliunment
+# terra::res(oefua_raster)
+# # [1] 2000 2000
+# terra::res(uc_raster)
+# # [1] 2000 2000
+# terra::res(efua_raster)
+# # [1] 2000 2000
+# terra::ext(oefua_raster)
+# # SpatExtent : -18041000, 18041000, -9000000, 9000000 (xmin, xmax, ymin, ymax)
+# terra::ext(uc_raster)
+# # SpatExtent : -18041000, 18041000, -9000000, 9000000 (xmin, xmax, ymin, ymax)
+# terra::ext(efua_raster)
+# # SpatExtent : -18041000, 18041000, -9000000, 9000000 (xmin, xmax, ymin, ymax)
+# 
+# 
+# # Rasterize sf objects to match pop_agg
+# oefua_raster <- terra::rasterize(vect(oefua), pop_agg, field = "OE_FUAID")
+# uc_raster <- terra::rasterize(vect(uc), pop_agg, field = "ID_UC_G0")
+# efua_raster <- terra::rasterize(vect(efua), pop_agg, field = "eFUA_ID")
+# 
+# ## Step 2: Find intersections conditional on pixel with population and spatial overlap 
+# area_intersections <- function(area_raster1, area_raster2, pop_raster) {
+#   area_ids <- unique(area_raster1[!is.na(area_raster1)])
+#   intersections <- data.frame()
+#   
+#   for(area_id in area_ids) {
+#     # Create mask
+#     area_mask <- area_raster1 == area_id
+#     
+#     # Find oefua areas that have population overlap with this area
+#     overlapping_cells <- area_mask & !is.na(area_raster2) & !is.na(pop_raster)
+#     
+#     if(terra::global(overlapping_cells, fun = "sum", na.rm = TRUE)[1,1] > 0) {
+#       overlapping_oefua <- unique(area_raster2[overlapping_cells])
+#       overlapping_oefua <- overlapping_oefua[!is.na(overlapping_oefua)]
+#       
+#       if(length(overlapping_oefua) > 0) {
+#         intersections <- rbind(intersections, 
+#                                data.frame(area_id = area_id, 
+#                                           oefua_id = overlapping_oefua))
+#       }
+#     }
+#   }
+#   return(intersections)
+# }
+# 
+# # Find uc intersections with oefua
+# uc_intersections <- area_intersections(uc_raster, oefua_raster, pop_agg)
+# names(uc_intersections) <- c("uc_id", "oefua_id")
+# 
+# # Find efua intersections with oefua
+# efua_intersections <- area_intersections(efua_raster, oefua_raster, pop_agg)
+# names(efua_intersections) <- c("efua_id", "oefua_id")
+# 
+# message("intersections process...")
+# 
+# # Check for multiple intersections
+# uc_multi <- uc_intersections %>% 
+#   group_by(uc_id) %>% 
+#   summarise(n_oefua = n()) %>% 
+#   filter(n_oefua > 1)
+# 
+# efua_multi <- efua_intersections %>% 
+#   group_by(efua_id) %>% 
+#   summarise(n_oefua = n()) %>% 
+#   filter(n_oefua > 1)
+# 
+# if(nrow(uc_multi) > 0) {
+#   warning(paste("UC areas intersecting multiple OEFUA:", paste(uc_multi$uc_id, collapse = ", ")))
+# }
+# 
+# if(nrow(efua_multi) > 0) {
+#   warning(paste("EFUA areas intersecting multiple OEFUA:", paste(efua_multi$efua_id, collapse = ", ")))
+# }
+# 
+# ## Step 3: Apply 50% population rule 
+# 
+# # Function to apply 50% rule
+# selection_rule <- function(area_raster, area_intersections, area_name) {
+#   
+#   # Calculate total population for each area
+#   total_pop <- terra::zonal(pop_agg, area_raster, fun = "sum", na.rm = TRUE)
+#   names(total_pop) <- c("area_id", "total_pop")
+#   
+#   qualifying_areas <- data.frame()
+#   
+#   for(i in 1:nrow(area_intersections)) {
+#     area_id <- area_intersections[i, 1]
+#     oefua_id <- area_intersections[i, 2]
+#     
+#     # Create intersection mask
+#     area_mask <- area_raster == area_id
+#     oefua_mask <- oefua_raster == oefua_id
+#     intersection_mask <- area_mask & oefua_mask
+#     
+#     # Calculate intersection population
+#     intersect_pop <- terra::global(pop_agg * intersection_mask, fun = "sum", na.rm = TRUE)[1,1]
+#     
+#     # Get total population for this area
+#     total_pop_area <- total_pop[total_pop$area_id == area_id, "total_pop"]
+#     
+#     # Apply 50% rule
+#     if(length(total_pop_area) > 0 && total_pop_area > 0) {
+#       ratio <- intersect_pop / total_pop_area
+#       if(ratio >= 0.5) {
+#         qualifying_areas <- rbind(qualifying_areas, 
+#                                   data.frame(area_id = area_id, 
+#                                              oefua_id = oefua_id,
+#                                              population = intersect_pop))
+#       }
+#     }
+#   }
+#   
+#   return(qualifying_areas)
+# }
+# 
+# # Apply rule to areas
+# uc_qualifying <- selection_rule(uc_raster, uc_intersections, "UC")
+# efua_qualifying <- selection_rule(efua_raster, efua_intersections, "EFUA")
+# 
+# message("Apply rule process...")
+# 
+# # Check for OEFUA with no qualifying areas
+# # oefua_ids <- unique(oefua$OE_FUAID)
+# # uc_oefua_covered <- unique(uc_qualifying$oefua_id)
+# # efua_oefua_covered <- unique(efua_qualifying$oefua_id)
+# # 
+# # uc_missing <- setdiff(oefua_ids, uc_oefua_covered)
+# # efua_missing <- setdiff(oefua_ids, efua_oefua_covered)
+# # 
+# # if(length(uc_missing) > 0) {
+# #   warning(paste("OEFUA with no qualifying UC areas:", paste(uc_missing, collapse = ", ")))
+# # }
+# # 
+# # if(length(efua_missing) > 0) {
+# #   warning(paste("OEFUA with no qualifying EFUA areas:", paste(efua_missing, collapse = ", ")))
+# # }
+# 
+# ## Step 4: Identify main city centers 
+# 
+# # UC main centers
+# uc_main_centers <- uc_qualifying %>%
+#   group_by(oefua_id) %>%
+#   mutate(Main_city_center = ifelse(population == max(population), 1, 0)) %>%
+#   select(Id = area_id, Main_city_center, oefua_id) %>%
+#   ungroup()
+# 
+# # EFUA main centers
+# efua_main_centers <- efua_qualifying %>%
+#   group_by(oefua_id) %>%
+#   mutate(Main_city_center = ifelse(population == max(population), 1, 0)) %>%
+#   select(Id = area_id, Main_city_center, oefua_id) %>%
+#   ungroup()
+# 
+# message("main city centers  process...")
+# 
+# ## Step 5: Create output tables 
+# 
+# write.csv(uc_main_centers, here("Output","uc_table.csv"), row.names = FALSE)
+# write.csv(efua_main_centers, here("Output", "efua_table.csv"), row.names = FALSE)
+# 
+# cat("UC qualifying areas:", nrow(uc_main_centers), "\n")
+# cat("EFUA qualifying areas:", nrow(efua_main_centers), "\n")
+# cat("Analysis complete!\n")
+# 
+# body = "Your R script has finished running!"
+# source(here("Data","pushsaver.R"))
+# 
+# }, error = function(e) {
+#   
+#   body = paste("Error in script:", e$message)
+#   source(here("Data","pushsaver.R"))
+#   
+# })
 
 
 # NEXT STEPS
