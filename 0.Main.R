@@ -59,10 +59,9 @@ lapply(dirs, dir.create)
 ## Runs the following --------
 # 1. Load data
 # 2. Review data and check spatial and temporal compatibility
-# 3. Clip population data
-# 4. Create matching ids table
-# 5. Select and create variables according urban definitions
-# 6. Create database with geom for each urban definition
+# 3. Clip population data and Create matching ids table and 
+# 4. Select and create variables according urban definitions
+# 5. Create database with geom for each urban definition
 
 
 # 1.Load data and getting to know you ♥ ----
@@ -102,6 +101,11 @@ pop_2020 <- terra::rast(here("Data"
                          , "GHS_POP_E2020_GLOBE_R2023A_54009_1000_V1_0"
                          , "GHS_POP_E2020_GLOBE_R2023A_54009_1000_V1_0.tif"
                          ))
+
+uc_2019 <- st_read(here("Data"
+                   , "GHS_STAT_UCDB2015MT_GLOBE_R2019A_V1_2"
+                   , "GHS_STAT_UCDB2015MT_GLOBE_R2019A_V1_2.gpkg"
+))
 
 # 2. Review data and check spatial and temporal compatibility ----
 
@@ -216,19 +220,15 @@ saveWidget(comparison_map
            , selfcontained = TRUE
            )
 
-# 3. Clip population data -----
+# 3. Clip population data and matching id table-----
 
-tryCatch({
 # Using vector approach instead of raster, due to the size of pop raster
   pop_agg <- terra::aggregate(pop_2020, fact = 2, fun = "sum") 
   
   names(pop_agg) <- "total_pop"
   
-  message("Starting vector-based analysis...")
-  
   ## Step 1: Calculate total population for each area using vector-raster extraction
-  message("Extracting population data...")
-  
+
   # Extract total population for each urban area
   uc_pop <- terra::extract(pop_agg, terra::vect(uc), fun = "sum", na.rm = TRUE, ID = TRUE) # maps to original polygon, preserves order
   efua_pop <- terra::extract(pop_agg, terra::vect(efua), fun = "sum", na.rm = TRUE, ID = TRUE)
@@ -239,8 +239,7 @@ tryCatch({
   
   gc()
   ## Step 2: Find spatial intersections using oefua based cluster selection
-  message("Computing spatial intersections...")
-  
+
   # Set up parallel processing
   plan(multisession, workers = parallel::detectCores() - 1)
   
@@ -287,8 +286,7 @@ tryCatch({
   efua_intersections <- map_dfr(tile_results, ~.x$efua)
   
   ## Step 3: Extract population for intersection areas
-  message("Calculating intersection populations...")
-  
+
   # Extract population for intersection polygons
   uc_intersect_pop <- terra::extract(pop_agg, terra::vect(uc_intersections), 
                                      fun = "sum", na.rm = TRUE, ID = TRUE)
@@ -300,8 +298,7 @@ tryCatch({
   efua_intersections$intersect_pop <- replace_na(efua_intersect_pop$total_pop, 0)
   
   ## Step 4: Apply 50% population rule
-  message("Applying 50% population rule...")
-  
+
   # Calculate population ratios with NA handling
   uc_intersections$pop_ratio <- ifelse(uc_intersections$total_pop > 0,
                                        uc_intersections$intersect_pop / uc_intersections$total_pop, 
@@ -315,8 +312,7 @@ tryCatch({
   efua_qualifying <- efua_intersections[efua_intersections$pop_ratio >= 0.5, ]
   
   ## Step 5: Identify main city centers
-  message("Identifying main city centers...")
-  
+
   # Create data frames for processing
   uc_centers_df <- data.frame(
     Id = uc_qualifying$ID_UC_G0,
@@ -344,8 +340,7 @@ tryCatch({
     ungroup()
   
   ## Step 6: Quality checks
-  message("Running quality checks...")
-  
+
   # Check for multiple intersections
   uc_multi <- uc_centers_df %>% 
     group_by(Id) %>% 
@@ -368,8 +363,7 @@ tryCatch({
   }
   
   ## Step 7: Export results
-  message("Exporting results...")
-  
+
   write_csv(uc_main_centers, here("Output", "uc_table.csv"))
   write_csv(efua_main_centers, here("Output", "efua_table.csv"))
   
@@ -381,16 +375,6 @@ tryCatch({
   cat("EFUA areas with multiple OEFUA intersections:", nrow(efua_multi), "\n")
 
   gc()
-  
-message_text = "Your R script has finished running!"
-source(here("Data","pushsaver.R"))
-
-}, error = function(e) {
-
-  message_text = paste("Error in script:", e$message)
-  source(here("Data","pushsaver.R"))
-
-})
 
 # NEXT
 # Mapping problematic intersections, check intersection conditions, its ucs and efuas with multiple oefuas!
@@ -579,11 +563,228 @@ source(here("Data","pushsaver.R"))
 #   
 # })
 
+  
+# 4. Select and create variables according urban definitions -----
+## For efua
+  efua_dataset <- efua %>%
+                  separate_longer_delim(UC_IDs, delim = ";") %>%
+                  mutate(UC_IDs = as.numeric(trimws(UC_IDs))) %>% 
+                  left_join(st_drop_geometry(uc_2019), by = c("UC_IDs" = "ID_HDC_G0")) %>%  #with efua geometry!!
+                  st_as_sf() %>% 
+                  rename(AREA = area) %>% 
+                  group_by(ID_HDC_G0) %>%
+                  mutate(main =  # Main city center
+                         ) 
+                        
+  
+  
+  ## Operations mapping with variables and geometries
+  # Area weighted sum  
+  # Average rate of growth  
+  # Population weighted sum  
+  # Simple sum  
+  # Total % change  
+  # Value of main  
+  
+  # Variable	Operation	Geometry
+  # B00	Simple sum	all
+  # B15	Simple sum	all
+  # Annual average rate of build up growth (2010-2015)	Average rate pf growth	all
+  # P00	Simple sum	all
+  # P15	Simple sum	all
+  # Annual average rate of pop growth (2010-2015)	Average rate pf growth	all
+  # BUCAP15	population weighted sum	All
+  # NTL_AV	Area weighted sum	all
+  # GDP00_SM	Simple sum	all
+  # GDP15_SM	Simple sum	all
+  # Average GDP growth (2000-2015)	Average rate pf growth	all
+  # GDP per cap 2015	population weighted sum	all
+  # GDP per cap 2010	population weighted sum	all
+  # GDP per cap average growth rate (2010-2015)	Average rate pf growth	all
+  # TT2CC	Value of main	main uc
+  # E_GR_AT00	Area weighted sum	all
+  # E_GR_AT14	Area weighted sum	all
+  # Cange in greem	Total % change	all
+  # E_EPM2_E00	Simple sum	all
+  # E_EPM2_E15	Simple sum	all
+  # E_EPM2_R00	Simple sum	all
+  # E_EPM2_R15	Simple sum	all
+  # E_EPM2_I00	Simple sum	all
+  # E_EPM2_I15	Simple sum	all
+  # E_EPM2_T00	Simple sum	all
+  # E_EPM2_T15	Simple sum	all
+  # E_EPM2_A00	Simple sum	all
+  # E_EPM2_A15	Simple sum	all
+  # ADD GRWTH FOR EACH OF THE CATEGORIES	Total % change	all
+  # E_CPM2_T00	Area weighted sum	all
+  # E_CPM2_T14	Area weighted sum	all
+  # ADD GRWTH FOR EACH OF THE CATEGORIES	Total % change	all
+  # EX_FD_B00	simple sum	all
+  # EX_FD_B15	simple sum	all
+  # ADD GRWTH FOR EACH OF THE CATEGORIES	simple sum	all
+  # EX_FD_P00	simple sum	all
+  # EX_FD_P15	Simple sum	all
+  # ADD GRWTH FOR EACH OF THE CATEGORIES	Total % change	all
+  # EX_SS_B00	simple sum	all
+  # EX_SS_B15	simple sum	all
+  # ADD GRWTH FOR EACH OF THE CATEGORIES	Total % change	all
+  # EX_SS_P00	Area weighted sum	all
+  # EX_SS_P15	Simple sum	all
+  # SDG_LUE9015	Value of main	main uc
+  # SDG_OS15MX	Value of main	main uc
+  # 
+  
+  # SIMPLE SUM (sum across all ucs in efua)
+  simple_sum_vars <- c(
+    "B00", "B15",                           # Built-up area
+    "P00", "P15",                           # Population  
+    "GDP00_SM", "GDP15_SM",                 # GDP PPP totals
+    "E_EPM2_E00", "E_EPM2_E15",             # Energy emissions
+    "E_EPM2_R00", "E_EPM2_R15",             # Residential emissions
+    "E_EPM2_I00", "E_EPM2_I15",             # Industrial emissions
+    "E_EPM2_T00", "E_EPM2_T15",             # Transport emissions
+    "E_EPM2_A00", "E_EPM2_A15",             # Agriculture emissions
+    "EX_FD_B00", "EX_FD_B15",               # Flood exposure built-up
+    "EX_FD_P00", "EX_FD_P15",               # Flood exposure population
+    "EX_SS_B00", "EX_SS_B15",               # Sea level exposure built-up
+    "EX_SS_P15"                             # Sea level exposure population
+  )  
+  
+  # POPULATION WEIGHTED SUM (weighted by P15) VERIFY!!
+  pop_weighted_vars <- c(
+    "BUCAP15",                             # Built-up per capita
+    "GDP_per_cap_2015",                    # GDP per capita 2015
+    "GDP_per_cap_2010"                     # GDP per capita 2010
+  )
+  
+  # AREA WEIGHTED SUM (weighted by built-up area)
+  area_weighted_vars <- c(
+    "NTL_AV",                              # Night time lights
+    "E_GR_AT00", "E_GR_AT14",             # Green areas
+    "E_CPM2_T00", "E_CPM2_T14",           # PM2.5 concentrations
+    "EX_SS_P00"                           # Sea level exposure population (area weighted)
+  )
+  
+  # VALUE OF MAIN UC (take value from uc with highest P15)
+  main_uc_vars <- c(
+    "TT2CC",                               # Travel time to city center
+    "SDG_LUE9015",                         # SDG Land Use Efficiency
+    "SDG_OS15MX"                           # SDG Open Space
+  )
+  
+  # GROWTH RATES (calculate after aggregation)
+  growth_rate_vars <- c(
+    "buildup_growth_rate",                 # (B15_total/B00_total)^(1/5) - 1
+    "pop_growth_rate",                     # (P15_total/P00_total)^(1/15) - 1  
+    "gdp_growth_rate",                     # (GDP15_total/GDP00_total)^(1/15) - 1
+    "gdp_per_cap_growth_rate"              # Calculate from aggregated values
+  )
+  
+  # PERCENTAGE CHANGES (calculate after aggregation)
+  pct_change_vars <- c(
+    "green_change_pct",                    # (E_GR_AT14_total - E_GR_AT00_total)/E_GR_AT00_total * 100
+    "pm25_change_pct",                     # (E_CPM2_T14_total - E_CPM2_T00_total)/E_CPM2_T00_total * 100
+    "flood_buildup_change_pct",            # (EX_FD_B15_total - EX_FD_B00_total)/EX_FD_B00_total * 100
+    "flood_pop_change_pct",                # (EX_FD_P15_total - EX_FD_P00_total)/EX_FD_P00_total * 100
+    "sealevel_buildup_change_pct"          # (EX_SS_B15_total - EX_SS_B00_total)/EX_SS_B00_total * 100
+  )
+  
+  # Aggregate uc_2019 data to efua level
+  fua_stats <- efua_dataset %>%
+    group_by(eFUA_ID) %>%
+    summarise(
+        
+        # Simple sums
+        across(all_of(simple_sum_vars), ~sum(.x, na.rm = TRUE)),
+        
+        # Population weighted averages
+        across(all_of(pop_weighted_vars), 
+               ~weighted.mean(.x, P15, na.rm = TRUE)),
+        
+        # Area weighted averages  
+        across(all_of(area_weighted_vars),
+               ~weighted.mean(.x, B15, na.rm = TRUE)),
+        
+        # efua metadata
+        total_area = sum(B15, na.rm = TRUE),
+        total_population = sum(P15, na.rm = TRUE),
+        n_urban_centers = n(),
+        
+        .groups = 'drop'
+      ) %>%
+      
+      # Calculate growth rates
+      mutate(
+        # Growth rates (compound annual)
+        buildup_growth_rate = (B15 / B00)^(1/15) - 1,     # 2000-2015
+        pop_growth_rate = (P15 / P00)^(1/15) - 1,         # 2000-2015
+        gdp_growth_rate = (GDP15_SM / GDP00_SM)^(1/15) - 1, # 2000-2015
+        
+        # GDP per capita (calculate from aggregated totals) VERIFY!!!
+        gdp_per_cap_00 = GDP00_SM / P00,
+        gdp_per_cap_15 = GDP15_SM / P15,
+        gdp_per_cap_growth_rate = (gdp_per_cap_15 / gdp_per_cap_00)^(1/15) - 1,
+        
+        # Percentage changes
+        green_change_pct = (E_GR_AT14 - E_GR_AT00) / E_GR_AT00 * 100,
+        pm25_change_pct = (E_CPM2_T14 - E_CPM2_T00) / E_CPM2_T00 * 100,
+        flood_buildup_change_pct = (EX_FD_B15 - EX_FD_B00) / EX_FD_B00 * 100,
+        flood_pop_change_pct = (EX_FD_P15 - EX_FD_P00) / EX_FD_P00 * 100,
+        sealevel_buildup_change_pct = (EX_SS_B15 - EX_SS_B00) / EX_SS_B00 * 100,
+        sealevel_pop_change_pct = (EX_SS_P15 - EX_SS_P00) / EX_SS_P00 * 100,
+        
+        # Emissions growth by category
+        energy_emissions_growth = (E_EPM2_E15 - E_EPM2_E00) / E_EPM2_E00 * 100,
+        residential_emissions_growth = (E_EPM2_R15 - E_EPM2_R00) / E_EPM2_R00 * 100,
+        industrial_emissions_growth = (E_EPM2_I15 - E_EPM2_I00) / E_EPM2_I00 * 100,
+        transport_emissions_growth = (E_EPM2_T15 - E_EPM2_T00) / E_EPM2_T00 * 100,
+        agriculture_emissions_growth = (E_EPM2_A15 - E_EPM2_A00) / E_EPM2_A00 * 100
+      )
+  
 
-# NEXT STEPS
-# Select variables according simple sum, areal weigthed sum, population weigted sum or other
-# Write code and calculate new variable according urban definition
-# Create database for each urban definition
-# Create key table to match urban definitions and metadata
-
-
+              
+## For uc, 2024
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  # NEXT STEPS
+  # Select variables according simple sum, areal weigthed sum, population weigted sum or other
+  # Write code and calculate new variable according urban definition
+  # Create database for each urban definition
+  # Create key table to match urban definitions and metadata
+  
+  # First the list of deliverables I expect in the folder (clearly arranged in the folder)
+  #   Now the list of graphs:
+  #   
+  #   First of all, I expect to have  ability to select one main city, and 8 comparators: 4 direct comparators, and 4 aspirational. Both groups should be identified by color – E.g. green for aspirational, blue for direct.
+  # 
+  # Comparison of economic growth – GVA OE 15 years line chart till 2021.
+  # Comparison of employment growth: OE 15 years line chart till 2021.
+  # Comparison of growth of Night lights: total of eFUAs (15 years) – line chart
+  # Comparison of growth of total build up area eFUA (25 years) – line chart
+  # Comparison of gdp growth using GDP from UCDB – sum of all centers, (not sure what the time range is for it  - so make a call)
+  # Comparison of the structure of GVA : OE, % bar charts. 2019
+  # Comparison of structure of employment: OE, % bar charts 2019
+  # Timeseries bar charts for shifts of employment structure for each city (hopefully you can stack them on one page). OE – 15 years.til 2021
+  # Timeseries bar charts for shifts of GVA structure for each city. Till 2021
+  # Comparison structure bar charts for high – low skill employment using the data for eFUAs from bens dataset, use lates year available.
+  # GHG emissions per capita over time comparison  - line chart. (for as long as available) – UCBD
+  # Share of population living  in areas in areas exposed to 10 year floods.  – USDB, a simple bar chart.
+  # 
+  # Bonus
+  # 
+  # Comparison of gdp growth using GDP from UCDB – oonly for the main urban center. , line chart,
+  # Share of population exposed to 20 year coastal floods  - bar chart, UDSB
+  # Share of green in build up areas – bar chart.UCDB
+  # Increase of annual mean temperatures – bar chart UCDB
+  # Road network density – bar chart  - UCDB
+  # CISI index for all sectors.  – UCDB – population average for all urban centers.
+  # 
+  
