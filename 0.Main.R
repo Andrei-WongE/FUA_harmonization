@@ -569,15 +569,14 @@ saveWidget(comparison_map
   efua_dataset <- efua %>%
                   separate_longer_delim(UC_IDs, delim = ";") %>%
                   mutate(UC_IDs = as.numeric(trimws(UC_IDs))) %>% 
-                  left_join(st_drop_geometry(uc_2019), by = c("UC_IDs" = "ID_HDC_G0")) %>%  #with efua geometry!!
-                  st_as_sf() %>% 
-                  rename(AREA = area) %>% 
+                  left_join(st_drop_geometry(uc_2019), by = c("UC_IDs" = "ID_HDC_G0"), keep = TRUE) %>%  #with efua geometry!!
+                  rename(area = AREA) %>% 
                   group_by(ID_HDC_G0) %>%
-                  mutate(main =  # Main city center
-                         ) 
-                        
-  
-  
+                  mutate(main_uc = as.integer(P15 == max(P15, na.rm = TRUE))) %>% # Main city center 
+                  ungroup() %>% 
+                  st_as_sf()
+
+                
   ## Operations mapping with variables and geometries
   # Area weighted sum  
   # Average rate of growth  
@@ -604,7 +603,7 @@ saveWidget(comparison_map
   # TT2CC	Value of main	main uc
   # E_GR_AT00	Area weighted sum	all
   # E_GR_AT14	Area weighted sum	all
-  # Cange in greem	Total % change	all
+  # Change in green	Total % change	all
   # E_EPM2_E00	Simple sum	all
   # E_EPM2_E15	Simple sum	all
   # E_EPM2_R00	Simple sum	all
@@ -650,16 +649,10 @@ saveWidget(comparison_map
     "EX_SS_P15"                             # Sea level exposure population
   )  
   
-  # POPULATION WEIGHTED SUM (weighted by P15) VERIFY!!
-  pop_weighted_vars <- c(
-    "BUCAP15",                             # Built-up per capita
-    "GDP_per_cap_2015",                    # GDP per capita 2015
-    "GDP_per_cap_2010"                     # GDP per capita 2010
-  )
-  
-  # AREA WEIGHTED SUM (weighted by built-up area)
+
+  # AREA WEIGHTED SUM (weighted by area) vs FUA_area VERIFY!!
   area_weighted_vars <- c(
-    "NTL_AV",                              # Night time lights
+    "NTL_AV",                             # Night time lights
     "E_GR_AT00", "E_GR_AT14",             # Green areas
     "E_CPM2_T00", "E_CPM2_T14",           # PM2.5 concentrations
     "EX_SS_P00"                           # Sea level exposure population (area weighted)
@@ -672,55 +665,45 @@ saveWidget(comparison_map
     "SDG_OS15MX"                           # SDG Open Space
   )
   
-  # GROWTH RATES (calculate after aggregation)
-  growth_rate_vars <- c(
-    "buildup_growth_rate",                 # (B15_total/B00_total)^(1/5) - 1
-    "pop_growth_rate",                     # (P15_total/P00_total)^(1/15) - 1  
-    "gdp_growth_rate",                     # (GDP15_total/GDP00_total)^(1/15) - 1
-    "gdp_per_cap_growth_rate"              # Calculate from aggregated values
-  )
-  
-  # PERCENTAGE CHANGES (calculate after aggregation)
-  pct_change_vars <- c(
-    "green_change_pct",                    # (E_GR_AT14_total - E_GR_AT00_total)/E_GR_AT00_total * 100
-    "pm25_change_pct",                     # (E_CPM2_T14_total - E_CPM2_T00_total)/E_CPM2_T00_total * 100
-    "flood_buildup_change_pct",            # (EX_FD_B15_total - EX_FD_B00_total)/EX_FD_B00_total * 100
-    "flood_pop_change_pct",                # (EX_FD_P15_total - EX_FD_P00_total)/EX_FD_P00_total * 100
-    "sealevel_buildup_change_pct"          # (EX_SS_B15_total - EX_SS_B00_total)/EX_SS_B00_total * 100
-  )
-  
   # Aggregate uc_2019 data to efua level
-  fua_stats <- efua_dataset %>%
+  efua_stats <- efua_dataset %>%
     group_by(eFUA_ID) %>%
     summarise(
         
         # Simple sums
         across(all_of(simple_sum_vars), ~sum(.x, na.rm = TRUE)),
         
-        # Population weighted averages
-        across(all_of(pop_weighted_vars), 
-               ~weighted.mean(.x, P15, na.rm = TRUE)),
+        # Population weighted averages, ISSUE with summarise and weighted.mean() in dplyr operations!!!
+        BUCAP15 = sum(BUCAP15 * P15, na.rm = TRUE) / sum(P15, na.rm = TRUE),
         
         # Area weighted averages  
-        across(all_of(area_weighted_vars),
-               ~weighted.mean(.x, B15, na.rm = TRUE)),
+        across(all_of(area_weighted_vars), 
+                ~sum(.x * B15, na.rm = TRUE) / sum(B15, na.rm = TRUE)),
+        
+        # Main UC values (from UC with highest P15)
+        across(all_of(main_uc_vars), ~.x[which.max(P15)]),
         
         # efua metadata
         total_area = sum(B15, na.rm = TRUE),
         total_population = sum(P15, na.rm = TRUE),
         n_urban_centers = n(),
+        area_distortion = area/FUA_area,
+        pop_distortion = P15/FUA_p_2015,
         
+        # Taking first as its at efua level, WARNING ignored
+        geom = st_geometry(.)[1],
+          
         .groups = 'drop'
       ) %>%
       
-      # Calculate growth rates
+      # POST-aggregation calculations
       mutate(
         # Growth rates (compound annual)
         buildup_growth_rate = (B15 / B00)^(1/15) - 1,     # 2000-2015
         pop_growth_rate = (P15 / P00)^(1/15) - 1,         # 2000-2015
         gdp_growth_rate = (GDP15_SM / GDP00_SM)^(1/15) - 1, # 2000-2015
         
-        # GDP per capita (calculate from aggregated totals) VERIFY!!!
+        # GDP per capita
         gdp_per_cap_00 = GDP00_SM / P00,
         gdp_per_cap_15 = GDP15_SM / P15,
         gdp_per_cap_growth_rate = (gdp_per_cap_15 / gdp_per_cap_00)^(1/15) - 1,
@@ -741,7 +724,8 @@ saveWidget(comparison_map
         agriculture_emissions_growth = (E_EPM2_A15 - E_EPM2_A00) / E_EPM2_A00 * 100
       )
   
-
+  # ISSUE uc do not sum to efua as this include commuting zones that are structurally different from uc
+  # using efua area and population is an heroic assumption VERIFY!!!!!
               
 ## For uc, 2024
   
