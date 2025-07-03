@@ -53,6 +53,7 @@ terraOptions(memfrac = 0.9, todisk = TRUE) # Set memory fraction and write to di
 # Create directories
 dirs <- c("Data", "Output", "Figures")
 lapply(dirs, dir.create)
+source("Utils.R")
 
 # Modify gitignore
 
@@ -86,6 +87,10 @@ uc <- st_read(here("Data"
                    , "GHS_UCDB_GLOBE_R2024A.gpkg"
 )
 )
+
+uc_all <- read_gpkg_layers(here("Data", "GHS_UCDB_GLOBE_R2024A_V1_0", "GHS_UCDB_GLOBE_R2024A.gpkg")
+                 , selected_layers = NULL
+                 , quiet = FALSE)
 
 # UC_NM_MN: the main name of the Urban Centre
 # UC_NM_LST: full list of assigned names of the Urban Centre
@@ -238,6 +243,7 @@ saveWidget(comparison_map
   efua$total_pop <- efua_pop$total_pop
   
   gc()
+  
   ## Step 2: Find spatial intersections using oefua based cluster selection
 
   # Set up parallel processing
@@ -364,8 +370,8 @@ saveWidget(comparison_map
   
   ## Step 7: Export results
 
-  write_csv(uc_main_centers, here("Output", "uc_table.csv"))
-  write_csv(efua_main_centers, here("Output", "efua_table.csv"))
+  write_csv(uc_main_centers, here("Output", "uc_OE_table.csv"))
+  write_csv(efua_main_centers, here("Output", "efua_OE_table.csv"))
   
   # Summary statistics
   cat("Analysis Complete!\n")
@@ -665,7 +671,7 @@ saveWidget(comparison_map
     "SDG_OS15MX"                           # SDG Open Space
   )
   
-  # Aggregate uc_2019 data to efua level
+  # Aggregate uc_2019 data to efua level, FUA_p_2015 amd FUA_area
   efua_stats <- efua_dataset %>%
     group_by(eFUA_ID) %>%
     summarise(
@@ -726,18 +732,252 @@ saveWidget(comparison_map
   
   # ISSUE uc do not sum to efua as this include commuting zones that are structurally different from uc
   # using efua area and population is an heroic assumption VERIFY!!!!!
-              
+  
+  write_csv(efua_stats, here("Output", "efua_stats.csv"))
+  saveRDS(efua_stats, here("Output", "efua_stats.rds"))
+  
 ## For uc, 2024
   
+  # Indicator Name		Attribute ID	Unit	Operation
+  # Urban Centre Area		GC_UCA_KM2_2020	km2	Simple sum
+  # Urban Centre population		GC_POP_TOT_2020	number of people	Simple sum
+  # Total Built-up surface		GH_BUS_TOT_2020	m2	Simple sum
+  # build up SERFICE GROWTH rate 2010-2019				Average rate of growth 
+  # Total Population		GH_POP_TOT_2020	num inhabitants	Simple sum
+  # Compound Annual Growth Rate		GH_POP_CAG_2020		Average rate of growth 
+  # GDP		SC_SEC_GDP_2020	PPP	Simple sum
+  # GDP average annual growth				Average rate of growth 
+  # Expected years of schooling		SC_SEC_SET_2020	years	Population weighted average
+  # Mean years of schooling		SC_SEC_SYT_2020	years	Population weighted average
+  # Emissions per capita 	Emissions of  CO2 per capita	EM_CO2_PEC_2020	ton/(year x person)	Population weighted average
+  # Emissions of  GHG per capita	EM_GHG_PEC_2020	ton/(year x person)	Population weighted average
+  # Emissions of  NOx per capita	EM_NOX_PEC_2020	ton/(year x person)	Population weighted average
+  # Emissions of  PM2.5 per capita	EM_PM2_PEC_2020	ton/(year x person)	Population weighted average
+  # Share of population living in areas exposed to floods 	Share of population living in areas exposed to floods (100 yrp)	EX_010_SHP_2020	%	Population weighted average
+  # Share of population living in areas exposed to floods (10 yrp)	EX_100_SHP_2020	%	Population weighted average
+  # Share of population exposed	Share of Population exposed to coastal floods with a return period of 20 years	EX_CF2_SHP_2020	%	Population weighted average
+  # Share of Population exposed to coastal floods with a return period of 100 years	EX_CF1_SHP_2020	%	Population weighted average
+  # Total number of events		HZ_CON_TOT_2020	num events	Simple sum
+  # Share of green area in built-up area		GR_SHB_GRN_2020	%	Area weighted sum 
+  # increase in annual mean temperature 2000-2019				Calculate using aveages of urban centers  for each of the year
+  # Share of the urban centre population living within 1 km buffer from a hospital		HL_SHP_HOS_2020	%	Area weighted average
+  # Road network density		IN_ROA_DEN_2020	m/m2	Area weignted average
+  # CISI (all sectors)		IN_CIS_ALL_2020	-	Population weighted average
+  # 
+  
+  # A. Define variables by type for extracting from sub datasets and create dataset with relevant vars
+  
+  # SIMPLE SUM variables
+  simple_sum_vars <- c(
+    "GC_POP_TOT_2025",     # Urban Centre population  
+    "GH_BUS_TOT_2020",     # Total Built-up surface
+    "GH_POP_TOT_2020",     # Total Population
+    "SC_SEC_GDP_2020",     # GDP
+    "HZ_CON_TOT_2020"      # Total number of events
+  )
+  
+  # POPULATION WEIGHTED AVERAGE variables
+  pop_weighted_vars <- c(
+    "SC_SEC_SET_2020",     # Expected years of schooling
+    "SC_SEC_SYT_2020",     # Mean years of schooling
+    "EM_CO2_PEC_2020",     # CO2 emissions per capita
+    "EM_GHG_PEC_2020",     # GHG emissions per capita
+    "EM_NOX_PEC_2020",     # NOX emissions per capita
+    "EM_PM2_PEC_2020",     # PM2.5 emissions per capita
+    "EX_010_SHP_2020",     # Share pop exposed to 10yr floods
+    "EX_100_SHP_2020",     # Share pop exposed to 100yr floods
+    "EX_CF2_SHP_2020",     # Share pop exposed to climate factor 2
+    "EX_CF1_SHP_2020",     # Share pop exposed to climate factor 1
+    "IN_CIS_ALL_2020"      # CISI (all sectors)
+  )
+  
+  # AREA WEIGHTED AVERAGE variables
+  area_weighted_vars <- c(
+    "GR_SHB_GRN_2020",     # Share of green area in built-up
+    "HL_SHP_HOS_2025",     # Share pop within 1km of hospital
+    "IN_ROA_DEN_2024"      # Road network density
+  )
+  
+  other_vars <- c(
+    "GC_UCA_KM2_2025"     # Urban Centre Area
+  )
+  
+  # GROWTH RATE variables (after aggregation)
+  growth_rate_vars <- c(
+    "buildup_growth_rate",      # From built-up data
+    "pop_growth_rate",          # From GH_POP_CAG_2020 or calculate
+    "gdp_growth_rate",          # From GDP data
+    "temp_increase_rate"        # From temperature data
+  )
   
   
+  all_vars <- c(simple_sum_vars, pop_weighted_vars, area_weighted_vars, other_vars)
+  
+  # Create an index of variable names to their respective layer names
+  var_df_mapping <- imap(uc_all, function(df, name) {
+                      variable_names <- setdiff(names(df), c("ID_UC_G0", "geom"))
+                      setNames(rep(name, length(variable_names)), variable_names)
+                    }) %>% 
+                    flatten_chr()
+  
+  vars_by_layer <- split(names(var_df_mapping), var_df_mapping)
+  selected_layers <- intersect(names(vars_by_layer), names(uc_all))
+  
+  uc_merged <- reduce(
+    selected_layers,
+    function(x, layer_name) {
+      vars <- intersect(vars_by_layer[[layer_name]], all_vars)
+      df <- uc_all[[layer_name]] %>%
+            dplyr::select(any_of(c("ID_UC_G0", vars, "geom")))
+      
+      if (is.null(x)) { #Requried for initialization
+        return(df)
+      } else {
+        return(left_join(x, st_drop_geometry(df), by = "ID_UC_G0"))
+      }
+    },
+    .init = NULL
+  ) %>%
+    st_as_sf()
+  
+  # Clean duplicates
+  uc_merged <- uc_merged %>%
+    rename(
+      GC_POP_TOT_2025 = GC_POP_TOT_2025,      
+      GC_UCA_KM2_2025 = GC_UCA_KM2_2025        
+    ) %>%
+    dplyr::select(-matches("^GC_POP_TOT_2025\\.")) %>%
+    dplyr::select(-matches("^GC_UCA_KM2_2025\\."))
+  
+  # B. Geographically matching, as uc and efua are not compatible:
+  
+  # Intersection between uc and efua
+  intersections <- st_intersection(uc_merged, efua)
+  
+  # Area of each intersection
+  intersections$intersection_area <- st_area(intersections)
+  
+  # Proportion intersection, crs in meters
+  intersections$area_percentage <- as.numeric(intersections$intersection_area) / 1000000 / intersections$GC_UCA_KM2_2025
+  
+  # Population in each intersection
+  intersections$pop_in_intersection <- intersections$area_percentage * intersections$GC_POP_TOT_2025
+  
+  # Group by uc and calculate total population and percentage in each efua
+  uc_efua_match <- intersections %>%
+    st_drop_geometry() %>%
+    group_by(ID_UC_G0) %>%
+    mutate(
+      total_uc_pop = sum(pop_in_intersection),
+      pop_percentage = pop_in_intersection / total_uc_pop * 100
+    ) %>%
+    ungroup()
+  
+  # Filter for uc where >50% population is in an efua
+  uc_assigned <- uc_efua_match %>%
+    filter(pop_percentage > 50) %>%
+    dplyr::select(ID_UC_G0, eFUA_ID, pop_percentage)
+  
+  # Join to original uc data
+  ghsl_efua <- uc_merged %>%
+    left_join(uc_assigned, by = "ID_UC_G0") %>%
+    left_join(efua %>% st_drop_geometry(), by = "eFUA_ID")
+  
+  # Identify main uc for each efua
+  main_uc_lookup <- ghsl_efua %>%
+    st_drop_geometry() %>%
+    filter(!is.na(eFUA_ID)) %>%
+    group_by(eFUA_ID) %>%
+    slice_max(GC_POP_TOT_2025, n = 1, with_ties = FALSE) %>%
+    dplyr::select(eFUA_ID, main_uc_id = ID_UC_G0)
+  
+  # Add main_uc 
+  ghsl_efua <- ghsl_efua %>%
+    left_join(main_uc_lookup, by = "eFUA_ID") %>%
+    mutate(main_uc = ifelse(ID_UC_G0 == main_uc_id, TRUE, FALSE)) %>%
+    dplyr::select(-main_uc_id)
+  
+  # View results
+  print(paste("Total UCs:", nrow(ghsl_efua)))
+  print(paste("UCs assigned to eFUA:", sum(!is.na(ghsl_efua$eFUA_ID))))
+  print(paste("Main UCs identified:", sum(ghsl_efua$main_uc, na.rm = TRUE)))
+  
+  # [1] "Total UCs: 11422"
+  # [1] "UCs assigned to eFUA: 9554"
+  # [1] "Main UCs identified: 7824"
+
+  # Check for multiple assignments (shouldn't happen with >50% rule)
+  multiple_assignments <- uc_efua_match %>%
+    filter(pop_percentage > 50) %>%
+    group_by(ID_UC_G0) %>%
+    summarise(count = n()) %>%
+    filter(count > 1)
+  
+  if(nrow(multiple_assignments) > 0) {
+    warning("Some UCs assigned to multiple eFUAs - check population calculation")
+  }
+    
+    # separate_longer_delim(UC_IDs, delim = ";") %>%
+    # mutate(UC_IDs = as.numeric(trimws(UC_IDs))) %>% 
+    # left_join(st_drop_geometry(uc), by = c("UC_IDs" = "ID_UC_G0"), keep = TRUE) %>%  #with efua geometry!!
+    # rename(area = GC_UCA_KM2_2025) %>% 
+    # group_by(ID_UC_G0) %>%
+    # mutate(main_uc = as.integer(GC_POP_TOT_2025 == max(GC_POP_TOT_2025, na.rm = TRUE))) %>% # Main city center 
+    # ungroup() %>% 
+    # st_as_sf()
   
   
+
+  # C. Aggregate GHSL data to eFUA level
+  ghsl_efua <- ghsl_efua %>%
+    st_drop_geometry() %>%
+    group_by(eFUA_ID) %>%
+    summarise(
+      # Simple sums
+      across(all_of(simple_sum_vars), ~sum(.x, na.rm = TRUE)),
+      
+      # Population weighted averages
+      across(all_of(pop_weighted_vars), 
+             ~sum(.x * GH_POP_TOT_2020, na.rm = TRUE) / sum(GH_POP_TOT_2020, na.rm = TRUE)),
+      
+      # Area weighted averages (weighted by built-up area)
+      across(all_of(area_weighted_vars),
+             ~sum(.x * GH_BUS_TOT_2020, na.rm = TRUE) / sum(GH_BUS_TOT_2020, na.rm = TRUE)),
+      
+      # Metadata
+      total_area_km2 = sum(GC_UCA_KM2_2020, na.rm = TRUE),
+      total_population = sum(GH_POP_TOT_2020, na.rm = TRUE),
+      total_buildup_m2 = sum(GH_BUS_TOT_2020, na.rm = TRUE),
+      total_gdp_ppp = sum(SC_SEC_GDP_2020, na.rm = TRUE),
+      n_urban_centers = n(),
+      
+      .groups = 'drop'
+    ) %>%
+    # POST-aggregation calculations
+    mutate(
+      # Growth rates (if base year data available)
+      # buildup_growth_rate = calculate from time series data
+      # pop_growth_rate = use GH_POP_CAG_XXXX if available
+      # gdp_growth_rate = calculate from GDP time series
+      
+      # Derived indicators
+      gdp_per_capita = total_gdp_ppp / total_population,
+      buildup_per_capita = total_buildup_m2 / total_population,
+      population_density = total_population / total_area_km2
+    )
+  
+  # Join geometry back
+  ghsl_efua_final <- ghsl_efua %>%
+    left_join(
+      ghsl_dataset %>% select(eFUA_ID, geom) %>% distinct(),
+      by = "eFUA_ID"
+    ) %>%
+    st_sf()
   
   
-  
-  
-  
+  write_csv(uc_main_centers, here("Output", "ghsl_efua.csv"))
+  saveRDS(efua_stats, here("Output", "ghsl_efua.rds"))
+
   # NEXT STEPS
   # Select variables according simple sum, areal weigthed sum, population weigted sum or other
   # Write code and calculate new variable according urban definition
