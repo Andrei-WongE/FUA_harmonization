@@ -671,7 +671,7 @@ saveWidget(comparison_map
     "SDG_OS15MX"                           # SDG Open Space
   )
   
-  # Aggregate uc_2019 data to efua level, FUA_p_2015 amd FUA_area
+  # Aggregate uc_2019 data to efua level, FUA_p_2015/P15 amd FUA_area/B15
   efua_stats <- efua_dataset %>%
     group_by(eFUA_ID) %>%
     summarise(
@@ -680,14 +680,14 @@ saveWidget(comparison_map
         across(all_of(simple_sum_vars), ~sum(.x, na.rm = TRUE)),
         
         # Population weighted averages, ISSUE with summarise and weighted.mean() in dplyr operations!!!
-        BUCAP15 = sum(BUCAP15 * P15, na.rm = TRUE) / sum(P15, na.rm = TRUE),
+        BUCAP15 = sum(BUCAP15 * FUA_p_2015, na.rm = TRUE) / sum(FUA_p_2015, na.rm = TRUE),
         
         # Area weighted averages  
         across(all_of(area_weighted_vars), 
-                ~sum(.x * B15, na.rm = TRUE) / sum(B15, na.rm = TRUE)),
+                ~sum(.x * FUA_area, na.rm = TRUE) / sum(B15, na.rm = TRUE)),
         
         # Main UC values (from UC with highest P15)
-        across(all_of(main_uc_vars), ~.x[which.max(P15)]),
+        across(all_of(main_uc_vars), ~.x[which.max(FUA_p_2015)]),
         
         # efua metadata
         total_area = sum(B15, na.rm = TRUE),
@@ -708,13 +708,14 @@ saveWidget(comparison_map
         buildup_growth_rate = (B15 / B00)^(1/15) - 1,     # 2000-2015
         pop_growth_rate = (P15 / P00)^(1/15) - 1,         # 2000-2015
         gdp_growth_rate = (GDP15_SM / GDP00_SM)^(1/15) - 1, # 2000-2015
+        # NTL_AV, only 2015
         
-        # GDP per capita
+        # GDP per capita, 2000-2015
         gdp_per_cap_00 = GDP00_SM / P00,
         gdp_per_cap_15 = GDP15_SM / P15,
         gdp_per_cap_growth_rate = (gdp_per_cap_15 / gdp_per_cap_00)^(1/15) - 1,
         
-        # Percentage changes
+        # Percentage changes, 2000-2015
         green_change_pct = (E_GR_AT14 - E_GR_AT00) / E_GR_AT00 * 100,
         pm25_change_pct = (E_CPM2_T14 - E_CPM2_T00) / E_CPM2_T00 * 100,
         flood_buildup_change_pct = (EX_FD_B15 - EX_FD_B00) / EX_FD_B00 * 100,
@@ -722,7 +723,7 @@ saveWidget(comparison_map
         sealevel_buildup_change_pct = (EX_SS_B15 - EX_SS_B00) / EX_SS_B00 * 100,
         sealevel_pop_change_pct = (EX_SS_P15 - EX_SS_P00) / EX_SS_P00 * 100,
         
-        # Emissions growth by category
+        # Emissions growth by category, 2000-2015
         energy_emissions_growth = (E_EPM2_E15 - E_EPM2_E00) / E_EPM2_E00 * 100,
         residential_emissions_growth = (E_EPM2_R15 - E_EPM2_R00) / E_EPM2_R00 * 100,
         industrial_emissions_growth = (E_EPM2_I15 - E_EPM2_I00) / E_EPM2_I00 * 100,
@@ -795,11 +796,11 @@ saveWidget(comparison_map
   area_weighted_vars <- c(
     "GR_SHB_GRN_2020",     # Share of green area in built-up
     "HL_SHP_HOS_2025",     # Share pop within 1km of hospital
-    "IN_ROA_DEN_2024"      # Road network density
+    "IN_ROA_DEN_2024"      # Road network density, only for 2024
   )
   
   other_vars <- c(
-    "GC_UCA_KM2_2025"     # Urban Centre Area
+    "GC_UCA_KM2_2025"     # Urban Centre Area, in all subdatasets
   )
   
   # GROWTH RATE variables (after aggregation)
@@ -925,12 +926,11 @@ saveWidget(comparison_map
     # mutate(main_uc = as.integer(GC_POP_TOT_2025 == max(GC_POP_TOT_2025, na.rm = TRUE))) %>% # Main city center 
     # ungroup() %>% 
     # st_as_sf()
-  
-  
 
   # C. Aggregate GHSL data to eFUA level
-  ghsl_efua <- ghsl_efua %>%
+  ghsl_dataset <- ghsl_efua %>%
     st_drop_geometry() %>%
+    drop_na(eFUA_ID) %>% # 1868 NA's, this is, do not comply with matching rule
     group_by(eFUA_ID) %>%
     summarise(
       # Simple sums
@@ -945,11 +945,13 @@ saveWidget(comparison_map
              ~sum(.x * GH_BUS_TOT_2020, na.rm = TRUE) / sum(GH_BUS_TOT_2020, na.rm = TRUE)),
       
       # Metadata
-      total_area_km2 = sum(GC_UCA_KM2_2020, na.rm = TRUE),
+      total_area_km2 = sum(GC_UCA_KM2_2025, na.rm = TRUE),
       total_population = sum(GH_POP_TOT_2020, na.rm = TRUE),
       total_buildup_m2 = sum(GH_BUS_TOT_2020, na.rm = TRUE),
       total_gdp_ppp = sum(SC_SEC_GDP_2020, na.rm = TRUE),
       n_urban_centers = n(),
+      area_distortion = total_area_km2/FUA_area,
+      pop_distortion = total_population/FUA_p_2015,
       
       .groups = 'drop'
     ) %>%
@@ -967,16 +969,20 @@ saveWidget(comparison_map
     )
   
   # Join geometry back
-  ghsl_efua_final <- ghsl_efua %>%
-    left_join(
-      ghsl_dataset %>% select(eFUA_ID, geom) %>% distinct(),
-      by = "eFUA_ID"
-    ) %>%
-    st_sf()
+  ghsl_efua_final <- ghsl_dataset %>%
+                     distinct() %>% 
+                      left_join(
+                        ghsl_efua %>% drop_na(eFUA_ID) %>% dplyr::select(eFUA_ID, geom) %>% distinct(),
+                        by = "eFUA_ID"
+                      ) %>%
+                      st_sf()
   
+  if(!dim(ghsl_efua_final)[1] == sum(!is.na(ghsl_efua$eFUA_ID))) {
+    warning("Output does not match eFUA number")
+  }
   
-  write_csv(uc_main_centers, here("Output", "ghsl_efua.csv"))
-  saveRDS(efua_stats, here("Output", "ghsl_efua.rds"))
+  write_csv(ghsl_efua_final, here("Output", "ghsl_efua.csv"))
+  saveRDS(ghsl_efua_final, here("Output", "ghsl_efua.rds"))
 
   # NEXT STEPS
   # Select variables according simple sum, areal weigthed sum, population weigted sum or other
