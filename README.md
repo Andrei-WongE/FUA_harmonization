@@ -25,21 +25,76 @@ Each dataset has a different urban definition, as such:
 # Geographic Matching and Variable Documentation
 
 ## 1. Geographic Matching
+# Geographic Matching and Variable Documentation
+### eFUA Dataset Aggregation (2000-2015)
 
-### Data Sources and Geographic Levels
+#### Geographic Matching Process
+- **Step 1**: eFUAs contain multiple Urban Centres (UCs) linked by semicolon-delimited IDs
+- **Step 2**: Each UC spatially joined to corresponding eFUA geometry
+- **Step 3**: Main UC identified as center with highest population (P15)
 
-The Shiny Geo App integrates two primary datasets with different geographic definitions:
+#### Variable Aggregation Rules
 
-#### **Urban Centre Data (UCDB)**
-- **Source**: Global Human Settlement Layer Urban Centre Database 2024 (GHS_UCDB_GLOBE_R2024A).
-- **Geographic Unit**: Urban Centres as defined by GHSL methodology.
-- **Coverage**: Multi-temporal urban change data (2015-2020).
+| Operation Type | Variables | Method |
+|----------------|-----------|---------|
+| **Simple Sum** | Built-up area (B00, B15), Population (P00, P15), GDP totals, All emissions categories, Flood/sea level exposure | Direct summation across all UCs within eFUA |
+| **Population Weighted Sum** | Built-up per capita (BUCAP15), GDP per capita | `sum(value × population) / sum(population)` |
+| **Area Weighted Sum** | Night lights (NTL_AV), Green areas, PM2.5 concentrations | `sum(value × area) / sum(built-up area)` |
+| **Value of Main UC** | Travel time to center (TT2CC), SDG indicators | Value taken from UC with highest population |
 
-#### **OECD Metropolitan Area Data**
-- **Source**: OECD Metropolitan Database.  
-- **Geographic Unit**: Metropolitan areas and cities as defined by OECD.
-- **Coverage**: Economic indicators (2001-2021).
+#### Post-Aggregation Calculations
+- **Growth Rates**: Compound Annual Growth Rate using `(final/initial)^(1/years) - 1`
+- **Percentage Changes**: `(final - initial) / initial × 100`
+- **Per Capita Metrics**: Total values divided by aggregated population
 
+### UCDB-eFUA Matching (2020-2025 data)
+
+#### Geographic Intersection Method
+1. **Spatial Intersection**: UC boundaries intersected with eFUA boundaries
+2. **Area Calculation**: Intersection area computed for each UC-eFUA pair
+3. **Population Distribution**: UC population allocated proportionally by area
+4. **Assignment Rule**: UC assigned to eFUA if >50% of population falls within eFUA
+5. **Main UC Selection**: Highest population UC designated as main center per eFUA
+
+#### Results Summary
+- **Total UCs**: 11,422
+- **UCs assigned to eFUA**: 9,554 (83.6%)
+- **Main UCs identified**: 7,824
+- **Unmatched UCs**: 1,868 (failed 50% rule)
+
+#### Variable Aggregation for UCDB Data
+
+| Operation Type | Variables | Weighting Method |
+|----------------|-----------|------------------|
+| **Simple Sum** | Population, Built-up surface, GDP, Total events | Direct summation |
+| **Population Weighted** | Education indicators, Per capita emissions, Flood exposure shares, Infrastructure indices | `sum(value × population) / sum(population)` |
+| **Area Weighted** | Green area share, Hospital access, Road density | `sum(value × built-up area) / sum(built-up area)` |
+
+### Data Quality Controls
+
+#### Distortion Metrics
+- **Area Distortion**: `aggregated_UC_area / eFUA_area`
+- **Population Distortion**: `aggregated_UC_population / eFUA_population`
+
+#### Validation Checks
+- **Multiple Assignment Warning**: Flags UCs assigned to multiple eFUAs
+- **Coverage Verification**: Confirms all eFUAs have at least one assigned UC
+- **Geometry Consistency**: Validates spatial joins and area calculations
+
+### Key Limitations
+
+1. **Boundary Misalignment**: UC and eFUA boundaries don't perfectly align
+2. **Temporal Inconsistency**: Different reference years (2015 vs 2020-2025)
+3. **Population Assumptions**: Area-based population distribution may not reflect reality
+4. **Missing Data**: 16.4% of UCs couldn't be assigned to eFUAs
+5. **Commuting Zone Inclusion**: eFUAs include areas structurally different from UCs
+
+### Methodological Assumptions
+
+- **50% Population Rule**: Reasonable threshold for UC-eFUA assignment
+- **Area-Population Proportionality**: Population distributed evenly within UC boundaries
+- **Main UC Selection**: Largest population center represents eFUA characteristics
+- **Aggregation Validity**: Different weighting schemes appropriate for different variable types
 
 ### Country Name Standardization
 
@@ -71,29 +126,29 @@ The following country name mappings ensure consistency across datasets:
 
 | Variable | Definition | Geography | Data Source | Aggregation Method |
 |----------|------------|-----------|-------------|-------------------|
-| **Public_Services_Emp_Pct** | Employment in public services as % of total employment | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | EMPO_Q / EMPTOTT |
-| **Industry_Emp_Pct** | Employment in industry as % of total employment | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | EMPB_F / EMPTOTT |
-| **Financial_Business_Services_Emp_Pct** | Employment in financial & business services as % of total | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | EMPK_N / EMPTOTT |
-| **Consumer_Services_Emp_Pct** | Employment in consumer services as % of total employment | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | EMPGIR_U / EMPTOTT |
-| **Agriculture_Emp_Pct** | Employment in agriculture as % of total employment | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | EMPA / EMPTOTT |
-| **Transport_Information_Communic_Services_Emp_Pct** | Employment in transport, information & communication as % of total | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | EMPHJ / EMPTOTT |
+| **Public_Services_Emp_Pct** | Employment in public services as % of total employment | Metropolitan areas/Cities (OECD definition) | OE Database | EMPO_Q / EMPTOTT |
+| **Industry_Emp_Pct** | Employment in industry as % of total employment | Metropolitan areas/Cities (OECD definition) | OE Database | EMPB_F / EMPTOTT |
+| **Financial_Business_Services_Emp_Pct** | Employment in financial & business services as % of total | Metropolitan areas/Cities (OECD definition) | OE Database | EMPK_N / EMPTOTT |
+| **Consumer_Services_Emp_Pct** | Employment in consumer services as % of total employment | Metropolitan areas/Cities (OECD definition) | OE Database | EMPGIR_U / EMPTOTT |
+| **Agriculture_Emp_Pct** | Employment in agriculture as % of total employment | Metropolitan areas/Cities (OECD definition) | OE Database | EMPA / EMPTOTT |
+| **Transport_Information_Communic_Services_Emp_Pct** | Employment in transport, information & communication as % of total | Metropolitan areas/Cities (OECD definition) | OE Database | EMPHJ / EMPTOTT |
 
 #### Gross Value Added (GVA) Indicators
 
 | Variable | Definition | Geography | Data Source | Aggregation Method |
 |----------|------------|-----------|-------------|-------------------|
-| **Agriculture_GVA_Pct** | Agricultural GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | GVAAPPPC / GVATOTPPPC |
-| **Consumer_Services_GVA_Pct** | Consumer services GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | GVAGIR_UPPPC / GVATOTPPPC |
-| **Financial_Business_Services_GVA_Pct** | Financial & business services GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | GVAK_NPPPC / GVATOTPPPC |
-| **Industry_GVA_Pct** | Industrial GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | GVAB_FPPPC / GVATOTPPPC |
-| **Public_Services_GVA_Pct** | Public services GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | GVAO_QPPPC / GVATOTPPPC |
-| **Transport_Information_Communic_Services_GVA_Pct** | Transport, information & communication GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | GVAHJPPPC / GVATOTPPPC |
+| **Agriculture_GVA_Pct** | Agricultural GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OE Database | GVAAPPPC / GVATOTPPPC |
+| **Consumer_Services_GVA_Pct** | Consumer services GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OE Database | GVAGIR_UPPPC / GVATOTPPPC |
+| **Financial_Business_Services_GVA_Pct** | Financial & business services GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OE Database | GVAK_NPPPC / GVATOTPPPC |
+| **Industry_GVA_Pct** | Industrial GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OE Database | GVAB_FPPPC / GVATOTPPPC |
+| **Public_Services_GVA_Pct** | Public services GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OE Database | GVAO_QPPPC / GVATOTPPPC |
+| **Transport_Information_Communic_Services_GVA_Pct** | Transport, information & communication GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OE Database | GVAHJPPPC / GVATOTPPPC |
 
 #### Economic Indicators
 
 | Variable | Definition | Geography | Data Source | Aggregation Method |
 |----------|------------|-----------|-------------|-------------------|
-| **GDP_per_capita_PPP** | GDP per capita adjusted for purchasing power parity | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | GDPTOTPPPC / POPTOTT |
+| **GDP_per_capita_PPP** | GDP per capita adjusted for purchasing power parity | Metropolitan areas/Cities (OECD definition) | OE Database | GDPTOTPPPC / POPTOTT |
 
 ### Data Processing Notes
 
