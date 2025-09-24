@@ -4,8 +4,8 @@ Creates geographic matching tables between Oxford Economics eFUA, GHS-FUA and GH
 # Definitions 
 Each dataset has a different urban definition, as such:
 
-- OE eFUA: Overlay municipality and OECD’s definition of eFUA boundaries to include local units which have at least half of its population living within the eFUA boundary.
-- GHS-FUA: Areas in which at least 15% of the population is commuting to the main Urban Centre of the area. Delineated commuting area of the Urban Centres of epoch 2015, estimated through an automated classification procedure developed using OECD defintion/methodology.
+- OE eFUA: Overlay municipality and OE’s definition of eFUA boundaries to include local units which have at least half of its population living within the eFUA boundary.
+- GHS-FUA: Areas in which at least 15% of the population is commuting to the main Urban Centre of the area. Delineated commuting area of the Urban Centres of epoch 2015, estimated through an automated classification procedure developed using OE defintion/methodology.
 - GHS-UC: Areas defined by specific cut-off values on resident population and built-up surface share in a 1x1 km uniform global grid. 
 
 ![Urban Centre](uc.png)
@@ -17,8 +17,8 @@ Each dataset has a different urban definition, as such:
 
 # Technical documentation
 - GHS-UCDB R2019A:[Description of the GHS Urban Centre Database 2015](https://op.europa.eu/en/publication-detail/-/publication/aec4581b-29c5-11e9-8d04-01aa75ed71a1/language-en)
-- GHS-FUAs: [GHSL-OECD Functional Urban Areas](https://human-settlement.emergency.copernicus.eu/documents/GHSL_FUA_2019.pdf?t=1583246033)
-- eFUA methodology:[OECD’s approach to developing eFUAs](https://www.oecd.org/en/publications/cities-in-the-world_d0efcbda-en.html)
+- GHS-FUAs: [GHSL-OE Functional Urban Areas](https://human-settlement.emergency.copernicus.eu/documents/GHSL_FUA_2019.pdf?t=1583246033)
+- eFUA methodology:[OE’s approach to developing eFUAs](https://www.OE.org/en/publications/cities-in-the-world_d0efcbda-en.html)
 - OE: proprietary data
 
 ## 1. Geographic Matching
@@ -116,39 +116,39 @@ The following country name mappings ensure consistency across datasets:
 | **Built_up_pc_change** | Change in built-up per capita 2015-2020 | Urban Centres (GHSL definition) | GHS UCDB 2024 | Built-up area / population ratio difference |
 | **Built_rel_change** | Relative change in built-up surface 2015-2020 | Urban Centres (GHSL definition) | GHS UCDB 2024 | Proportional change in built surface |
 
-### Economic Structure Variables (OECD Dataset)
+### Economic Structure Variables (OE Dataset)
 
 #### Employment Indicators
 
 | Variable | Definition | Geography | Data Source | Aggregation Method |
 |----------|------------|-----------|-------------|-------------------|
-| **Public_Services_Emp_Pct** | Employment in public services as % of total employment | Metropolitan areas/Cities (OECD definition) | OE Database | EMPO_Q / EMPTOTT |
-| **Industry_Emp_Pct** | Employment in industry as % of total employment | Metropolitan areas/Cities (OECD definition) | OE Database | EMPB_F / EMPTOTT |
-| **Financial_Business_Services_Emp_Pct** | Employment in financial & business services as % of total | Metropolitan areas/Cities (OECD definition) | OE Database | EMPK_N / EMPTOTT |
-| **Consumer_Services_Emp_Pct** | Employment in consumer services as % of total employment | Metropolitan areas/Cities (OECD definition) | OE Database | EMPGIR_U / EMPTOTT |
-| **Agriculture_Emp_Pct** | Employment in agriculture as % of total employment | Metropolitan areas/Cities (OECD definition) | OE Database | EMPA / EMPTOTT |
-| **Transport_Information_Communic_Services_Emp_Pct** | Employment in transport, information & communication as % of total | Metropolitan areas/Cities (OECD definition) | OE Database | EMPHJ / EMPTOTT |
+| **Public_Services_Emp_Pct** | Employment in public services as % of total employment | Metropolitan areas/Cities (OE definition) | OE Database | EMPO_Q / EMPTOTT |
+| **Industry_Emp_Pct** | Employment in industry as % of total employment | Metropolitan areas/Cities (OE definition) | OE Database | EMPB_F / EMPTOTT |
+| **Financial_Business_Services_Emp_Pct** | Employment in financial & business services as % of total | Metropolitan areas/Cities (OE definition) | OE Database | EMPK_N / EMPTOTT |
+| **Consumer_Services_Emp_Pct** | Employment in consumer services as % of total employment | Metropolitan areas/Cities (OE definition) | OE Database | EMPGIR_U / EMPTOTT |
+| **Agriculture_Emp_Pct** | Employment in agriculture as % of total employment | Metropolitan areas/Cities (OE definition) | OE Database | EMPA / EMPTOTT |
+| **Transport_Information_Communic_Services_Emp_Pct** | Employment in transport, information & communication as % of total | Metropolitan areas/Cities (OE definition) | OE Database | EMPHJ / EMPTOTT |
 
 #### Gross Value Added (GVA) Indicators
 
 | Variable | Definition | Geography | Data Source | Aggregation Method |
 |----------|------------|-----------|-------------|-------------------|
-| **Agriculture_GVA_Pct** | Agricultural GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OE Database | GVAAPPPC / GVATOTPPPC |
-| **Consumer_Services_GVA_Pct** | Consumer services GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OE Database | GVAGIR_UPPPC / GVATOTPPPC |
-| **Financial_Business_Services_GVA_Pct** | Financial & business services GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OE Database | GVAK_NPPPC / GVATOTPPPC |
-| **Industry_GVA_Pct** | Industrial GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OE Database | GVAB_FPPPC / GVATOTPPPC |
-| **Public_Services_GVA_Pct** | Public services GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OE Database | GVAO_QPPPC / GVATOTPPPC |
-| **Transport_Information_Communic_Services_GVA_Pct** | Transport, information & communication GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OE Database | GVAHJPPPC / GVATOTPPPC |
+| **Agriculture_GVA_Pct** | Agricultural GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OE definition) | OE Database | GVAAPPPC / GVATOTPPPC |
+| **Consumer_Services_GVA_Pct** | Consumer services GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OE definition) | OE Database | GVAGIR_UPPPC / GVATOTPPPC |
+| **Financial_Business_Services_GVA_Pct** | Financial & business services GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OE definition) | OE Database | GVAK_NPPPC / GVATOTPPPC |
+| **Industry_GVA_Pct** | Industrial GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OE definition) | OE Database | GVAB_FPPPC / GVATOTPPPC |
+| **Public_Services_GVA_Pct** | Public services GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OE definition) | OE Database | GVAO_QPPPC / GVATOTPPPC |
+| **Transport_Information_Communic_Services_GVA_Pct** | Transport, information & communication GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OE definition) | OE Database | GVAHJPPPC / GVATOTPPPC |
 
 #### Economic Indicators
 
 | Variable | Definition | Geography | Data Source | Aggregation Method |
 |----------|------------|-----------|-------------|-------------------|
-| **GDP_per_capita_PPP** | GDP per capita adjusted for purchasing power parity | Metropolitan areas/Cities (OECD definition) | OE Database | GDPTOTPPPC / POPTOTT |
+| **GDP_per_capita_PPP** | GDP per capita adjusted for purchasing power parity | Metropolitan areas/Cities (OE definition) | OE Database | GDPTOTPPPC / POPTOTT |
 
 ### Data Processing Notes
 
-- **Time Coverage**: OECD data covers 2001-2021, UCDB data covers 2015-2020 changes.
+- **Time Coverage**: OE data covers 2001-2021, UCDB data covers 2015-2020 changes.
 - **Missing Values**: All rows with missing key variables are filtered out.
 - **PPP Adjustment**: All GVA and GDP variables are purchasing power parity adjusted.
 - **Percentage Calculations**: Employment and GVA percentages calculated as sector value divided by total.
