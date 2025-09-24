@@ -21,9 +21,6 @@ Each dataset has a different urban definition, as such:
 - eFUA methodology:[OECD’s approach to developing eFUAs](https://www.oecd.org/en/publications/cities-in-the-world_d0efcbda-en.html)
 - OE: proprietary data
 
-
-# Geographic Matching and Variable Documentation
-
 ## 1. Geographic Matching
 # Geographic Matching and Variable Documentation
 ### eFUA Dataset Aggregation (2000-2015)
