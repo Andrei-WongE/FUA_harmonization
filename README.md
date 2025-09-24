@@ -20,3 +20,139 @@ Each dataset has a different urban definition, as such:
 - GHS-FUAs: [GHSL-OECD Functional Urban Areas](https://human-settlement.emergency.copernicus.eu/documents/GHSL_FUA_2019.pdf?t=1583246033)
 - eFUA methodology:[OECD’s approach to developing eFUAs](https://www.oecd.org/en/publications/cities-in-the-world_d0efcbda-en.html)
 - OE: proprietary data
+
+
+# Geographic Matching and Variable Documentation
+
+## 1. Geographic Matching
+
+### Data Sources and Geographic Levels
+
+The Shiny Geo App integrates two primary datasets with different geographic definitions:
+
+#### **Urban Centre Data (UCDB)**
+- **Source**: Global Human Settlement Layer Urban Centre Database 2024 (GHS_UCDB_GLOBE_R2024A).
+- **Geographic Unit**: Urban Centres as defined by GHSL methodology.
+- **Coverage**: Multi-temporal urban change data (2015-2020).
+
+#### **OECD Metropolitan Area Data**
+- **Source**: OECD Metropolitan Database.  
+- **Geographic Unit**: Metropolitan areas and cities as defined by OECD.
+- **Coverage**: Economic indicators (2001-2021).
+
+
+### Country Name Standardization
+
+The following country name mappings ensure consistency across datasets:
+- United Arab Emirates → UAE
+- Democratic Republic of the Congo → Democratic Republic of Congo
+- Republic of the Congo → Congo
+- Cabo Verde → Cape Verde
+- Czechia → Czech Republic
+- Laos → Lao PDR
+- México → Mexico
+- Swaziland → Eswatini
+
+---
+
+## 2. Variable Definitions
+
+### Urban Change Variables (UCDB Dataset)
+
+| Variable | Definition | Geography | Data Source | Aggregation Method |
+|----------|------------|-----------|-------------|-------------------|
+| **UC_extent_change** | Change in urban centre extent (30% threshold) 2015-2020 | Urban Centres (GHSL definition) | GHS UCDB 2024 | Spatial analysis of built-up area |
+| **Built_up_pc_change** | Change in built-up per capita 2015-2020 | Urban Centres (GHSL definition) | GHS UCDB 2024 | Built-up area / population ratio difference |
+| **Built_rel_change** | Relative change in built-up surface 2015-2020 | Urban Centres (GHSL definition) | GHS UCDB 2024 | Proportional change in built surface |
+
+### Economic Structure Variables (OECD Dataset)
+
+#### Employment Indicators
+
+| Variable | Definition | Geography | Data Source | Aggregation Method |
+|----------|------------|-----------|-------------|-------------------|
+| **Public_Services_Emp_Pct** | Employment in public services as % of total employment | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | EMPO_Q / EMPTOTT |
+| **Industry_Emp_Pct** | Employment in industry as % of total employment | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | EMPB_F / EMPTOTT |
+| **Financial_Business_Services_Emp_Pct** | Employment in financial & business services as % of total | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | EMPK_N / EMPTOTT |
+| **Consumer_Services_Emp_Pct** | Employment in consumer services as % of total employment | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | EMPGIR_U / EMPTOTT |
+| **Agriculture_Emp_Pct** | Employment in agriculture as % of total employment | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | EMPA / EMPTOTT |
+| **Transport_Information_Communic_Services_Emp_Pct** | Employment in transport, information & communication as % of total | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | EMPHJ / EMPTOTT |
+
+#### Gross Value Added (GVA) Indicators
+
+| Variable | Definition | Geography | Data Source | Aggregation Method |
+|----------|------------|-----------|-------------|-------------------|
+| **Agriculture_GVA_Pct** | Agricultural GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | GVAAPPPC / GVATOTPPPC |
+| **Consumer_Services_GVA_Pct** | Consumer services GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | GVAGIR_UPPPC / GVATOTPPPC |
+| **Financial_Business_Services_GVA_Pct** | Financial & business services GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | GVAK_NPPPC / GVATOTPPPC |
+| **Industry_GVA_Pct** | Industrial GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | GVAB_FPPPC / GVATOTPPPC |
+| **Public_Services_GVA_Pct** | Public services GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | GVAO_QPPPC / GVATOTPPPC |
+| **Transport_Information_Communic_Services_GVA_Pct** | Transport, information & communication GVA as % of total GVA (PPP adjusted) | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | GVAHJPPPC / GVATOTPPPC |
+
+#### Economic Indicators
+
+| Variable | Definition | Geography | Data Source | Aggregation Method |
+|----------|------------|-----------|-------------|-------------------|
+| **GDP_per_capita_PPP** | GDP per capita adjusted for purchasing power parity | Metropolitan areas/Cities (OECD definition) | OECD Metropolitan Database | GDPTOTPPPC / POPTOTT |
+
+### Data Processing Notes
+
+- **Time Coverage**: OECD data covers 2001-2021, UCDB data covers 2015-2020 changes.
+- **Missing Values**: All rows with missing key variables are filtered out.
+- **PPP Adjustment**: All GVA and GDP variables are purchasing power parity adjusted.
+- **Percentage Calculations**: Employment and GVA percentages calculated as sector value divided by total.
+- **Geographic Filtering**: Only locations where Country ≠ Location are included (excludes country-level aggregates).
+
+---
+
+## 3. Data Aggregation Problems and Limitations
+
+### Geographic Matching Issues
+
+Several critical issues impact the reliability and comparability of results across different urban definitions:
+
+#### **Population Reference Year Inconsistencies**
+- **Issue**: All datasets currently use 2020 population for clipping OE and UC data.
+- **Impact**: Creates temporal misalignment for historical analysis.
+- **Recommendation**: Use population data corresponding to each analysis year.
+
+#### **Growth Variable Calculations**
+- **Issue**: No eFUA-level population data available for 2000.
+- **Current Solution**: Growth variables based on UC data measuring 2000-2015 changes.
+- **Impact**: Mixed geographic definitions in growth calculations affect comparability.
+
+#### **eFUA-UC Compatibility Problems**
+- **Issue**: eFUA boundaries not compatible with 2024 UC data.
+- **Current Solution**: Geographic matching using 50% overlap rule.
+- **Impact**: Some variables measured for 2024/2025 while others use 2020 baseline.
+- **Result**: Temporal and spatial comparability issues.
+
+### Dataset-Specific Limitations
+
+#### **Time Range Constraints**
+
+| Dataset | Available Time Range | Limitation |
+|---------|---------------------|------------|
+| **eFUA** | 2000-2015 changes only | Limited to historical analysis |
+| **UCDB** | 2000-2020 (5-year increments) | More comprehensive temporal coverage |
+| **OE** | 2005-2021 annual data | Best temporal resolution |
+
+#### **Data Point Scarcity Issues**
+
+The following visualizations are affected by insufficient data points:
+
+| Graph Type | Time Range | Database | Data Points Available | Impact |
+|------------|------------|----------|----------------------|--------|
+| **Night lights growth comparison** | 2015 | eFUA | 1 data point | Cannot show trend |
+| **Built-up area growth** | 1975-2015 | eFUA | Max 3 points (75-90; 90-20; 20-15) | Limited trend analysis |
+| **GDP growth (UCDB)** | 2000-2015 | UCDB | 4 data points | Sparse temporal coverage |
+| **GVA structure timeseries** | 2000-2015 | UCDB | 4 data points | Limited trend analysis |
+| **GHG emissions per capita** | 2000-2015 | UCDB | 4 data points | Insufficient for trend analysis |
+| **Flood exposure analysis** | 2000-2015 | UCDB | 4 data points | Static rather than temporal view |
+
+### Implications for Analysis
+
+#### **Comparability Concerns**
+- **Cross-database comparisons** may be misleading due to different geographic definitions.
+- **Temporal analysis** limited by inconsistent time ranges and sparse data points.
+
