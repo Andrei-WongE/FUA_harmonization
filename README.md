@@ -22,7 +22,6 @@ Each dataset has a different urban definition, as such:
 - OE: proprietary data
 
 ## 1. Geographic Matching
-# Geographic Matching and Variable Documentation
 ### eFUA Dataset Aggregation (2000-2015)
 
 #### Geographic Matching Process
