@@ -26,10 +26,10 @@ library("here")
 library("groundhog")
 
 set.groundhog.folder(here("groundhog_library"))
-groundhog.day = "2025-01-05"
+groundhog.day = "2025-09-22"
 #Dowloaded fromn https://github.com/CredibilityLab/groundhog
 
-pkgs = c("dplyr", "tidyverse", "janitor", "sf"
+pkgs = c("tidyverse", "janitor", "sf"
          , "ggplot2","xfun", "remotes", "sp", "spdep"
          , "foreach", "doParallel", "parallel", "progress"
          , "doSNOW", "purrr", "patchwork"
